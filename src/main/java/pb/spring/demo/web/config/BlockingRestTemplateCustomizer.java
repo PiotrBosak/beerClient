@@ -4,22 +4,40 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+
 @Component
 public class BlockingRestTemplateCustomizer implements RestTemplateCustomizer {
-    public ClientHttpRequestFactory clientHttpRequestFactory(){
+    private final Integer maxTotalConnections;
+    private final Integer defaultMaxTotalConnections;
+    private final Integer connectionRequestTimeout;
+    private final Integer socketTimeout;
+
+    public BlockingRestTemplateCustomizer(
+            @Value("${pb.spring.maxtotalconnections}") Integer maxTotalConnections,
+            @Value("${pb.spring.defaultmaxtotalconnections}") Integer defaultMaxTotalConnections,
+            @Value("${pb.spring.connectionrequesttimeout}") Integer connectionRequestTimeout,
+            @Value("${pb.spring.sockettimeout}") Integer socketTimeout) {
+        this.maxTotalConnections = maxTotalConnections;
+        this.defaultMaxTotalConnections = defaultMaxTotalConnections;
+        this.connectionRequestTimeout = connectionRequestTimeout;
+        this.socketTimeout = socketTimeout;
+    }
+
+    public ClientHttpRequestFactory clientHttpRequestFactory() {
         var connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setMaxTotal(100);
-        connectionManager.setDefaultMaxPerRoute(20);
+        connectionManager.setMaxTotal(maxTotalConnections);
+        connectionManager.setDefaultMaxPerRoute(defaultMaxTotalConnections);
 
         var requestConfig = RequestConfig
                 .custom()
-                .setConnectionRequestTimeout(3000)
-                .setSocketTimeout(3000)
+                .setConnectionRequestTimeout(connectionRequestTimeout)
+                .setSocketTimeout(socketTimeout)
                 .build();
         var httpClient = HttpClients
                 .custom()
@@ -27,8 +45,9 @@ public class BlockingRestTemplateCustomizer implements RestTemplateCustomizer {
                 .setKeepAliveStrategy(new DefaultConnectionKeepAliveStrategy())
                 .setDefaultRequestConfig(requestConfig)
                 .build();
-        return new  HttpComponentsClientHttpRequestFactory(httpClient);
+        return new HttpComponentsClientHttpRequestFactory(httpClient);
     }
+
     @Override
     public void customize(RestTemplate restTemplate) {
         restTemplate.setRequestFactory(this.clientHttpRequestFactory());
